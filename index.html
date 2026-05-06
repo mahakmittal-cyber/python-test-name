@@ -1,157 +1,755 @@
-<script>
-  const SUBMIT_ENDPOINT = "https://script.google.com/macros/s/AKfycbzKwCNrs8Crhp-l3o6AgY2Uh3wm5rtOXyclR5NO6dyeBH4GPZcFIIfkkKOY6s6M9p7g/exec";
-
-  const questions = [
-    { section: "Section A - Easy", difficulty: "Easy", marks: 2, title: "Q1 (2 marks)", text: "What is the difference between a list and a tuple in Python? Give one example of each." },
-    { section: "Section A - Easy", difficulty: "Easy", marks: 2, title: "Q2 (2 marks)", text: "What will this code print and why? x = [1,2,3]; y = x; y.append(4); print(x)" },
-    { section: "Section A - Easy", difficulty: "Easy", marks: 3, title: "Q3 (3 marks)", text: "Write a function that reverses a string without using built-in reverse methods." },
-    { section: "Section A - Easy", difficulty: "Easy", marks: 4, title: "Q4 (4 marks)", text: "Count the frequency of each word in \"the cat sat on the mat the cat\" and print as a dictionary." },
-    { section: "Section A - Easy", difficulty: "Easy", marks: 4, title: "Q5 (4 marks)", text: "Explain *args and **kwargs and write a function demonstrating both." },
-    { section: "Section B - Medium", difficulty: "Medium", marks: 4, title: "Q6 (4 marks)", text: "Write a BankAccount class with deposit, withdraw, and balance methods. Balance cannot go below zero." },
-    { section: "Section B - Medium", difficulty: "Medium", marks: 4, title: "Q7 (4 marks)", text: "Use list comprehension to get squares of even numbers from 1-50. Find their sum. One line each." },
-    { section: "Section B - Medium", difficulty: "Medium", marks: 7, title: "Q8 (7 marks)", text: "Find the bug and fix it - def add_to_list(item, my_list=[]): my_list.append(item); return my_list called 3 times with 1, 2, 3." },
-    { section: "Section C - Hard", difficulty: "Hard", marks: 5, title: "Q9 (5 marks)", text: "Write a timer decorator that measures execution time. Demo with sum of 1 to 1,000,000." },
-    { section: "Section C - Hard", difficulty: "Hard", marks: 5, title: "Q10 (5 marks)", text: "Explain generators vs regular functions. Write a generator for Fibonacci up to n terms." },
-    { section: "Section C - Hard", difficulty: "Hard", marks: 10, title: "Q11 (10 marks)", text: "Given a students list with name, grade, score - sort by score descending, filter below 50, group by grade with average score, return top scorer per grade." }
-  ];
-
-  const totalSeconds = 60 * 60;
-  let timeLeft = totalSeconds, timerId = null, currentIndex = 0, bufferUsed = false, submissionStatus = "", submitted = false;
-  const answers = new Array(questions.length).fill("");
-
-  const startScreen = document.getElementById("startScreen");
-  const testScreen = document.getElementById("testScreen");
-  const summaryScreen = document.getElementById("summaryScreen");
-  const startBtn = document.getElementById("startBtn");
-  const timerEl = document.getElementById("timer");
-  const progressText = document.getElementById("progressText");
-  const sectionBadge = document.getElementById("sectionBadge");
-  const difficultyBadge = document.getElementById("difficultyBadge");
-  const questionTitle = document.getElementById("questionTitle");
-  const questionText = document.getElementById("questionText");
-  const answerInput = document.getElementById("answerInput");
-  const dotsWrap = document.getElementById("dots");
-  const prevBtn = document.getElementById("prevBtn");
-  const nextBtn = document.getElementById("nextBtn");
-  const submitBtn = document.getElementById("submitBtn");
-  const summaryList = document.getElementById("summaryList");
-  const copyBtn = document.getElementById("copyBtn");
-  const bufferBtn = document.getElementById("bufferBtn");
-
-  const formatTime = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-  function updateTimerUI(){ timerEl.textContent = `Time Left: ${formatTime(timeLeft)}`; timerEl.classList.toggle("danger", timeLeft <= 300); }
-  function startTimer(){ updateTimerUI(); timerId = setInterval(()=>{ timeLeft--; if(timeLeft<=0){ timeLeft=0; updateTimerUI(); clearInterval(timerId); submitTest(); return; } updateTimerUI(); },1000); }
-  function saveCurrentAnswer(){ answers[currentIndex] = answerInput.value; }
-  function difficultyClass(d){ return d==="Easy"?"badge-easy":d==="Medium"?"badge-medium":"badge-hard"; }
-
-  function renderDots(){
-    dotsWrap.innerHTML = "";
-    for(let i=0;i<questions.length;i++){
-      const dot = document.createElement("button");
-      dot.className = "dot";
-      dot.textContent = String(i+1);
-      if(i===currentIndex) dot.classList.add("active");
-      if(answers[i].trim()) dot.classList.add("answered");
-      dot.addEventListener("click", ()=>{ saveCurrentAnswer(); currentIndex=i; renderQuestion(); });
-      dotsWrap.appendChild(dot);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Python Technical Test</title>
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --primary: #111827;
+      --danger: #dc2626;
     }
-  }
 
-  function renderQuestion(){
-    const q = questions[currentIndex];
-    progressText.textContent = `Question ${currentIndex+1} of ${questions.length}`;
-    sectionBadge.textContent = q.section;
-    difficultyBadge.textContent = q.difficulty;
-    difficultyBadge.className = `badge ${difficultyClass(q.difficulty)}`;
-    questionTitle.textContent = q.title;
-    questionText.textContent = q.text;
-    answerInput.value = answers[currentIndex];
-    prevBtn.disabled = currentIndex===0;
-    nextBtn.classList.toggle("hidden", currentIndex===questions.length-1);
-    submitBtn.classList.toggle("hidden", currentIndex!==questions.length-1);
-    renderDots();
-  }
-
-  function buildSummaryText(){
-    return questions.map((q,i)=>`${q.title}: ${q.text}\nAnswer:\n${answers[i].trim()||"[No answer provided]"}`).join("\n\n--------------------\n\n");
-  }
-
-  function renderSummary(){
-    summaryList.innerHTML = "";
-    if(submissionStatus){
-      const s = document.createElement("div");
-      s.className = "summary-item";
-      s.style.background = "#f8fafc";
-      s.style.borderStyle = "dashed";
-      s.textContent = submissionStatus;
-      summaryList.appendChild(s);
+    * {
+      box-sizing: border-box;
     }
-    questions.forEach((q,i)=>{
-      const wrap = document.createElement("div");
-      wrap.className = "summary-item";
-      const qEl = document.createElement("div");
-      qEl.className = "summary-q";
-      qEl.textContent = `${q.title}: ${q.text}`;
-      const aEl = document.createElement("p");
-      aEl.className = "summary-a";
-      aEl.textContent = answers[i].trim() || "No answer provided.";
-      if(!answers[i].trim()) aEl.classList.add("empty");
-      wrap.appendChild(qEl); wrap.appendChild(aEl);
-      summaryList.appendChild(wrap);
-    });
-  }
 
-  function submitTest(){
-    if(submitted) return;
-    submitted = true;
-    saveCurrentAnswer();
-    clearInterval(timerId);
-    testScreen.classList.add("hidden");
-    summaryScreen.classList.remove("hidden");
-    submissionStatus = "Submitting answers...";
-    renderSummary();
-    submitAnswersRemotely();
-  }
-
-  async function submitAnswersRemotely(){
-    if(!SUBMIT_ENDPOINT){
-      submissionStatus = "Remote submit not configured. Use 'Copy all answers' and share manually.";
-      renderSummary(); return;
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 35%, #f9fafb 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
     }
-    const payload = {
-      submittedAt: new Date().toISOString(),
-      totalQuestions: questions.length,
-      durationMinutes: Math.round((totalSeconds-timeLeft)/60),
-      timeLeftSeconds: timeLeft,
-      bufferUsed,
-      questions: questions.map((q,i)=>({questionNumber:i+1,section:q.section,difficulty:q.difficulty,marks:q.marks,title:q.title,question:q.text,answer:answers[i].trim()}))
-    };
-    try{
-      const formData = new URLSearchParams();
-      formData.append("payload", JSON.stringify(payload));
-      await fetch(SUBMIT_ENDPOINT,{ method:"POST", mode:"no-cors", body:formData });
-      submissionStatus = "Answers submitted. If they do not appear in the sheet, use 'Copy all answers' as backup.";
-    }catch(err){
-      submissionStatus = `Auto-submit failed: ${err.message}. Use 'Copy all answers' to share manually.`;
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
     }
-    renderSummary();
-  }
 
-  function applyBufferTime(){ if(bufferUsed) return; timeLeft += 900; bufferUsed = true; bufferBtn.disabled = true; bufferBtn.textContent = "Buffer used"; updateTimerUI(); }
-
-  if(startBtn) startBtn.addEventListener("click", ()=>{ startScreen.classList.add("hidden"); testScreen.classList.remove("hidden"); renderQuestion(); startTimer(); });
-  if(prevBtn) prevBtn.addEventListener("click", ()=>{ saveCurrentAnswer(); if(currentIndex>0){ currentIndex--; renderQuestion(); } });
-  if(nextBtn) nextBtn.addEventListener("click", ()=>{ saveCurrentAnswer(); if(currentIndex<questions.length-1){ currentIndex++; renderQuestion(); } });
-  if(submitBtn) submitBtn.addEventListener("click", submitTest);
-  if(bufferBtn) bufferBtn.addEventListener("click", applyBufferTime);
-  if(answerInput) answerInput.addEventListener("input", ()=>{ answers[currentIndex]=answerInput.value; renderDots(); });
-
-  if(copyBtn) copyBtn.addEventListener("click", async ()=>{
-    const text = buildSummaryText();
-    try{ await navigator.clipboard.writeText(text); copyBtn.textContent = "Copied"; }
-    catch{
-      const t=document.createElement("textarea"); t.value=text; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); copyBtn.textContent="Copied";
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
     }
-    setTimeout(()=>{ copyBtn.textContent="Copy all answers"; },1500);
-  });
-</script>
+
+    .start-screen {
+      text-align: center;
+      padding: 40px 24px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 1.75rem;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+
+    .meta-list {
+      display: inline-grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .meta-item {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 0.92rem;
+      color: #1f2937;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 18px;
+      font-size: 0.98rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.05s ease, opacity 0.15s ease;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .btn-submit {
+      background: #0f766e;
+      color: #fff;
+    }
+
+    .btn-buffer {
+      background: #1f2937;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .timer {
+      font-weight: 700;
+      font-size: 1.04rem;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .timer.danger {
+      color: #fff;
+      background: var(--danger);
+      border-color: #b91c1c;
+    }
+
+    .question-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .badge {
+      font-size: 0.8rem;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 6px 10px;
+      border: 1px solid transparent;
+    }
+
+    .badge-section {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+
+    .badge-easy {
+      background: #ecfdf3;
+      color: #15803d;
+      border-color: #bbf7d0;
+    }
+
+    .badge-medium {
+      background: #fff7ed;
+      color: #b45309;
+      border-color: #fed7aa;
+    }
+
+    .badge-hard {
+      background: #fef2f2;
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    .question-title {
+      font-size: 1.05rem;
+      margin: 0 0 8px;
+    }
+
+    .question-text {
+      margin: 0 0 14px;
+      line-height: 1.45;
+    }
+
+    .answer-box {
+      width: 100%;
+      min-height: 190px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 0.98rem;
+      line-height: 1.45;
+      resize: vertical;
+      font-family: Consolas, Menlo, Monaco, "Courier New", monospace;
+    }
+
+    .answer-box:focus {
+      outline: 2px solid #bfdbfe;
+      border-color: #60a5fa;
+    }
+
+    .dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    .dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #1f2937;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .dot.active {
+      border-color: #0f172a;
+      box-shadow: inset 0 0 0 2px #111827;
+    }
+
+    .dot.answered {
+      background: #16a34a;
+      border-color: #15803d;
+      color: #fff;
+    }
+
+    .nav {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      margin-top: 12px;
+    }
+
+    .summary-item {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+      background: #fcfcfd;
+    }
+
+    .summary-q {
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .summary-a {
+      white-space: pre-wrap;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .empty {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .summary-actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 14px;
+      }
+
+      .card {
+        padding: 16px;
+      }
+
+      .meta-list {
+        grid-template-columns: 1fr;
+      }
+
+      .answer-box {
+        min-height: 150px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div id="startScreen" class="card start-screen">
+      <h1>Python Technical Test</h1>
+      <p class="subtitle">11 questions | 3 sections | Total time: 60 minutes</p>
+
+      <div class="meta-list">
+        <div class="meta-item">Section A: Easy (15 marks)</div>
+        <div class="meta-item">Section B: Medium (15 marks)</div>
+        <div class="meta-item">Section C: Hard (20 marks)</div>
+      </div>
+
+      <button id="startBtn" class="btn btn-primary">Start Test</button>
+    </div>
+
+    <div id="testScreen" class="hidden">
+      <div class="topbar">
+        <div id="progressText">Question 1 of 11</div>
+
+        <div class="topbar-right">
+          <button id="bufferBtn" class="btn btn-buffer">+15 min buffer</button>
+          <div id="timer" class="timer">Time Left: 60:00</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="question-head">
+          <span id="sectionBadge" class="badge badge-section"></span>
+          <span id="difficultyBadge" class="badge"></span>
+        </div>
+
+        <h2 id="questionTitle" class="question-title"></h2>
+        <p id="questionText" class="question-text"></p>
+
+        <textarea id="answerInput" class="answer-box" placeholder="Write your answer here..."></textarea>
+
+        <div id="dots" class="dots"></div>
+
+        <div class="nav">
+          <button id="prevBtn" class="btn btn-secondary">Previous</button>
+
+          <div>
+            <button id="nextBtn" class="btn btn-secondary">Next</button>
+            <button id="submitBtn" class="btn btn-submit hidden">Submit Test</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="summaryScreen" class="hidden card">
+      <h2 style="margin-top:0;">Submission Summary</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Your responses are captured below.</p>
+
+      <div id="summaryList"></div>
+
+      <div class="summary-actions">
+        <button id="copyBtn" class="btn btn-primary">Copy all answers</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUBMIT_ENDPOINT = "https://script.google.com/macros/s/AKfycbzKwCNrs8Crhp-l3o6AgY2Uh3wm5rtOXyclR5NO6dyeBH4GPZcFIIfkkKOY6s6M9p7g/exec;
+
+    const questions = [
+      {
+        section: "Section A — Easy",
+        difficulty: "Easy",
+        marks: 2,
+        title: "Q1 (2 marks)",
+        text: "What is the difference between a list and a tuple in Python? Give one example of each."
+      },
+      {
+        section: "Section A — Easy",
+        difficulty: "Easy",
+        marks: 2,
+        title: "Q2 (2 marks)",
+        text: "What will this code print and why? x = [1,2,3]; y = x; y.append(4); print(x)"
+      },
+      {
+        section: "Section A — Easy",
+        difficulty: "Easy",
+        marks: 3,
+        title: "Q3 (3 marks)",
+        text: "Write a function that reverses a string without using built-in reverse methods."
+      },
+      {
+        section: "Section A — Easy",
+        difficulty: "Easy",
+        marks: 4,
+        title: "Q4 (4 marks)",
+        text: "Count the frequency of each word in \"the cat sat on the mat the cat\" and print as a dictionary."
+      },
+      {
+        section: "Section A — Easy",
+        difficulty: "Easy",
+        marks: 4,
+        title: "Q5 (4 marks)",
+        text: "Explain *args and **kwargs and write a function demonstrating both."
+      },
+      {
+        section: "Section B — Medium",
+        difficulty: "Medium",
+        marks: 4,
+        title: "Q6 (4 marks)",
+        text: "Write a BankAccount class with deposit, withdraw, and balance methods. Balance cannot go below zero."
+      },
+      {
+        section: "Section B — Medium",
+        difficulty: "Medium",
+        marks: 4,
+        title: "Q7 (4 marks)",
+        text: "Use list comprehension to get squares of even numbers from 1-50. Find their sum. One line each."
+      },
+      {
+        section: "Section B — Medium",
+        difficulty: "Medium",
+        marks: 7,
+        title: "Q8 (7 marks)",
+        text: "Find the bug and fix it — def add_to_list(item, my_list=[]): my_list.append(item); return my_list called 3 times with 1, 2, 3."
+      },
+      {
+        section: "Section C — Hard",
+        difficulty: "Hard",
+        marks: 5,
+        title: "Q9 (5 marks)",
+        text: "Write a timer decorator that measures execution time. Demo with sum of 1 to 1,000,000."
+      },
+      {
+        section: "Section C — Hard",
+        difficulty: "Hard",
+        marks: 5,
+        title: "Q10 (5 marks)",
+        text: "Explain generators vs regular functions. Write a generator for Fibonacci up to n terms."
+      },
+      {
+        section: "Section C — Hard",
+        difficulty: "Hard",
+        marks: 10,
+        title: "Q11 (10 marks)",
+        text: "Given a students list with name, grade, score — sort by score descending, filter below 50, group by grade with average score, return top scorer per grade."
+      }
+    ];
+
+    const totalSeconds = 60 * 60;
+
+    let timeLeft = totalSeconds;
+    let timerId = null;
+    let currentIndex = 0;
+    let bufferUsed = false;
+    let submissionStatus = "";
+    let submitted = false;
+
+    const answers = new Array(questions.length).fill("");
+
+    const startScreen = document.getElementById("startScreen");
+    const testScreen = document.getElementById("testScreen");
+    const summaryScreen = document.getElementById("summaryScreen");
+    const startBtn = document.getElementById("startBtn");
+    const timerEl = document.getElementById("timer");
+    const progressText = document.getElementById("progressText");
+    const sectionBadge = document.getElementById("sectionBadge");
+    const difficultyBadge = document.getElementById("difficultyBadge");
+    const questionTitle = document.getElementById("questionTitle");
+    const questionText = document.getElementById("questionText");
+    const answerInput = document.getElementById("answerInput");
+    const dotsWrap = document.getElementById("dots");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const submitBtn = document.getElementById("submitBtn");
+    const summaryList = document.getElementById("summaryList");
+    const copyBtn = document.getElementById("copyBtn");
+    const bufferBtn = document.getElementById("bufferBtn");
+
+    function formatTime(seconds) {
+      const min = Math.floor(seconds / 60);
+      const sec = seconds % 60;
+
+      return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    }
+
+    function updateTimerUI() {
+      timerEl.textContent = `Time Left: ${formatTime(timeLeft)}`;
+
+      if (timeLeft <= 5 * 60) {
+        timerEl.classList.add("danger");
+      } else {
+        timerEl.classList.remove("danger");
+      }
+    }
+
+    function startTimer() {
+      updateTimerUI();
+
+      timerId = setInterval(() => {
+        timeLeft -= 1;
+
+        if (timeLeft <= 0) {
+          timeLeft = 0;
+          updateTimerUI();
+          clearInterval(timerId);
+          submitTest();
+          return;
+        }
+
+        updateTimerUI();
+      }, 1000);
+    }
+
+    function saveCurrentAnswer() {
+      answers[currentIndex] = answerInput.value;
+    }
+
+    function difficultyClass(level) {
+      if (level === "Easy") return "badge-easy";
+      if (level === "Medium") return "badge-medium";
+      return "badge-hard";
+    }
+
+    function renderDots() {
+      dotsWrap.innerHTML = "";
+
+      for (let i = 0; i < questions.length; i += 1) {
+        const dot = document.createElement("button");
+        dot.className = "dot";
+        dot.textContent = String(i + 1);
+
+        if (i === currentIndex) {
+          dot.classList.add("active");
+        }
+
+        if (answers[i].trim().length > 0) {
+          dot.classList.add("answered");
+        }
+
+        dot.addEventListener("click", () => {
+          saveCurrentAnswer();
+          currentIndex = i;
+          renderQuestion();
+        });
+
+        dotsWrap.appendChild(dot);
+      }
+    }
+
+    function renderQuestion() {
+      const q = questions[currentIndex];
+
+      progressText.textContent = `Question ${currentIndex + 1} of ${questions.length}`;
+      sectionBadge.textContent = q.section;
+      difficultyBadge.textContent = q.difficulty;
+      difficultyBadge.className = `badge ${difficultyClass(q.difficulty)}`;
+
+      questionTitle.textContent = q.title;
+      questionText.textContent = q.text;
+      answerInput.value = answers[currentIndex];
+
+      prevBtn.disabled = currentIndex === 0;
+
+      nextBtn.classList.toggle("hidden", currentIndex === questions.length - 1);
+      submitBtn.classList.toggle("hidden", currentIndex !== questions.length - 1);
+
+      renderDots();
+    }
+
+    function buildSummaryText() {
+      return questions.map((q, i) => {
+        const a = answers[i].trim() ? answers[i].trim() : "[No answer provided]";
+
+        return `${q.title}: ${q.text}\nAnswer:\n${a}`;
+      }).join("\n\n--------------------\n\n");
+    }
+
+    function renderSummary() {
+      summaryList.innerHTML = "";
+
+      if (submissionStatus) {
+        const statusWrap = document.createElement("div");
+        statusWrap.className = "summary-item";
+        statusWrap.style.background = "#f8fafc";
+        statusWrap.style.borderStyle = "dashed";
+        statusWrap.textContent = submissionStatus;
+        summaryList.appendChild(statusWrap);
+      }
+
+      questions.forEach((q, i) => {
+        const wrap = document.createElement("div");
+        wrap.className = "summary-item";
+
+        const qEl = document.createElement("div");
+        qEl.className = "summary-q";
+        qEl.textContent = `${q.title}: ${q.text}`;
+
+        const aEl = document.createElement("p");
+        aEl.className = "summary-a";
+
+        if (answers[i].trim()) {
+          aEl.textContent = answers[i].trim();
+        } else {
+          aEl.textContent = "No answer provided.";
+          aEl.classList.add("empty");
+        }
+
+        wrap.appendChild(qEl);
+        wrap.appendChild(aEl);
+        summaryList.appendChild(wrap);
+      });
+    }
+
+    function submitTest() {
+      if (submitted) return;
+
+      submitted = true;
+      saveCurrentAnswer();
+      clearInterval(timerId);
+
+      testScreen.classList.add("hidden");
+      summaryScreen.classList.remove("hidden");
+
+      submissionStatus = "Submitting answers...";
+      renderSummary();
+
+      submitAnswersRemotely();
+    }
+
+    async function submitAnswersRemotely() {
+      if (!SUBMIT_ENDPOINT) {
+        submissionStatus = "Remote submit not configured. Use 'Copy all answers' and share manually.";
+        renderSummary();
+        return;
+      }
+
+      const payload = {
+        submittedAt: new Date().toISOString(),
+        totalQuestions: questions.length,
+        durationMinutes: Math.round((totalSeconds - timeLeft) / 60),
+        timeLeftSeconds: timeLeft,
+        bufferUsed: bufferUsed,
+        questions: questions.map((q, i) => ({
+          questionNumber: i + 1,
+          section: q.section,
+          difficulty: q.difficulty,
+          marks: q.marks,
+          title: q.title,
+          question: q.text,
+          answer: answers[i].trim()
+        }))
+      };
+
+      try {
+        const formData = new URLSearchParams();
+        formData.append("payload", JSON.stringify(payload));
+
+        await fetch(SUBMIT_ENDPOINT, {
+          method: "POST",
+          mode: "no-cors",
+          body: formData
+        });
+
+        submissionStatus = "Answers submitted. If they do not appear in the sheet, use 'Copy all answers' as backup.";
+      } catch (err) {
+        submissionStatus = `Auto-submit failed: ${err.message}. Use 'Copy all answers' to share manually.`;
+      }
+
+      renderSummary();
+    }
+
+    function applyBufferTime() {
+      if (bufferUsed) return;
+
+      timeLeft += 15 * 60;
+      bufferUsed = true;
+
+      bufferBtn.disabled = true;
+      bufferBtn.textContent = "Buffer used";
+
+      updateTimerUI();
+    }
+
+    if (startBtn) {
+      startBtn.addEventListener("click", () => {
+        startScreen.classList.add("hidden");
+        testScreen.classList.remove("hidden");
+        renderQuestion();
+        startTimer();
+      });
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener("click", () => {
+        saveCurrentAnswer();
+
+        if (currentIndex > 0) {
+          currentIndex -= 1;
+          renderQuestion();
+        }
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener("click", () => {
+        saveCurrentAnswer();
+
+        if (currentIndex < questions.length - 1) {
+          currentIndex += 1;
+          renderQuestion();
+        }
+      });
+    }
+
+    if (submitBtn) {
+      submitBtn.addEventListener("click", submitTest);
+    }
+
+    if (bufferBtn) {
+      bufferBtn.addEventListener("click", applyBufferTime);
+    }
+
+    if (answerInput) {
+      answerInput.addEventListener("input", () => {
+        answers[currentIndex] = answerInput.value;
+        renderDots();
+      });
+    }
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        const text = buildSummaryText();
+
+        try {
+          await navigator.clipboard.writeText(text);
+          copyBtn.textContent = "Copied";
+        } catch (err) {
+          const temp = document.createElement("textarea");
+          temp.value = text;
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand("copy");
+          document.body.removeChild(temp);
+          copyBtn.textContent = "Copied";
+        }
+
+        setTimeout(() => {
+          copyBtn.textContent = "Copy all answers";
+        }, 1500);
+      });
+    }
+  </script>
+</body>
+</html>
